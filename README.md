@@ -5,14 +5,14 @@ A desktop application built with Electron that allows you to select Mermaid.js f
 ## Features
 
 - 📁 **File Selection**: Choose files containing Mermaid.js code from your computer
-- 🎨 **Live Rendering**: Render Mermaid diagrams with a single click
+- 🎨 **Live Rendering**: Automatically renders diagrams when files are loaded
 - 🔄 **Auto-Refresh**: Automatically updates diagrams when files change
 - 🔍 **Zoom & Pan**: Zoom in/out and pan around large diagrams
 - 📱 **Drag & Drop**: Drag files directly onto the application window
 - 🔍 **Smart Detection**: Automatically detects Mermaid code in various file formats
 - 👁️ **File Watching**: Real-time monitoring of file changes with visual indicators
 - ⌨️ **Keyboard Shortcuts**: Quick access to zoom and navigation functions
-- 🧹 **Clear Function**: Reset the application to start fresh
+- 📐 **Maximized Viewport**: Full-screen diagram viewing with collapsible controls
 - 📊 **Multiple Diagram Types**: Supports all Mermaid diagram types
 
 ## Supported File Formats
@@ -60,15 +60,16 @@ A desktop application built with Electron that allows you to select Mermaid.js f
    - Toggle auto-refresh on/off using the "🔄 Auto-render on file change" checkbox
    - Watch status indicator shows when file monitoring is active
 
-4. **Navigate diagrams**: 
+4. **Maximized viewing**: 
+   - Controls automatically collapse after file selection for maximum diagram space
+   - Click "Controls" button or press 'C' key to show/hide controls
+   - Full viewport is dedicated to diagram viewing
+
+5. **Navigate diagrams**: 
    - Use mouse wheel to zoom in/out
    - Click and drag to pan around large diagrams
    - Use zoom controls in top-right corner
    - Reset zoom with the home button or Ctrl/Cmd + 0
-
-5. **Manual render**: Click the "🎨 Render Diagram" button to manually update
-
-6. **Clear**: Use the "🗑️ Clear" button to reset and start over
 
 ## Example Files
 
@@ -127,10 +128,11 @@ The application includes powerful zoom and pan capabilities for viewing large or
 - **Mouse Wheel**: Scroll to zoom in/out at cursor position
 - **Zoom Buttons**: Use +/- buttons in the top-right corner
 - **Reset Button**: Click the home button to reset zoom to 100%
-- **Keyboard Shortcuts**:
+### Keyboard Shortcuts:
   - `Ctrl/Cmd + +` - Zoom in
   - `Ctrl/Cmd + -` - Zoom out  
   - `Ctrl/Cmd + 0` - Reset zoom
+  - `C` - Toggle controls visibility
 
 ### Pan Controls
 
@@ -144,6 +146,15 @@ The application includes powerful zoom and pan capabilities for viewing large or
 - **Zoom Range**: 10% to 500% zoom levels supported
 - **Smart Zoom**: Zoom centers on mouse position for precise control
 
+## Interface Design
+
+The application features a **maximized viewport design** optimized for diagram viewing:
+
+- **Collapsible Controls**: The control panel automatically hides after file selection to maximize diagram space
+- **Full-Screen Viewing**: Diagrams occupy the entire viewport for better visibility of complex diagrams
+- **Quick Access**: Toggle controls with the 'C' key or click the "Controls" button
+- **Minimal UI**: Clean, distraction-free interface focused on diagram content
+
 ## Troubleshooting
 
 - **Diagram not rendering**: Ensure your Mermaid syntax is correct
@@ -152,6 +163,7 @@ The application includes powerful zoom and pan capabilities for viewing large or
 - **File watching error**: Check that the file still exists and is accessible
 - **Zoom not working**: Ensure the diagram is fully loaded before attempting to zoom
 - **Pan not responding**: Try clicking directly on the diagram SVG content
+- **Controls hidden**: Press 'C' key or click the "Controls" button to show/hide
 - **Application won't start**: Make sure all dependencies are installed with `npm install`
 
 ## Development
