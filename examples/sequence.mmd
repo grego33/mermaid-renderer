@@ -1,0 +1,20 @@
+sequenceDiagram
+    participant User
+    participant Frontend
+    participant Backend
+    participant Database
+
+    User->>+Frontend: Login Request
+    Frontend->>+Backend: Authenticate User
+    Backend->>+Database: Query User Credentials
+    Database-->>-Backend: User Data
+    Backend-->>-Frontend: Authentication Token
+    Frontend-->>-User: Login Success
+
+    User->>+Frontend: Request Data
+    Frontend->>+Backend: API Call with Token
+    Backend->>Backend: Validate Token
+    Backend->>+Database: Fetch Data
+    Database-->>-Backend: Return Data
+    Backend-->>-Frontend: JSON Response
+    Frontend-->>-User: Display Data

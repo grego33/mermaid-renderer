@@ -1,0 +1,60 @@
+classDiagram
+    class User {
+        +String id
+        +String username
+        +String email
+        +String password
+        +Date createdAt
+        +login()
+        +logout()
+        +updateProfile()
+    }
+
+    class Product {
+        +String id
+        +String name
+        +String description
+        +Float price
+        +Integer quantity
+        +String category
+        +addToCart()
+        +updateStock()
+        +getDetails()
+    }
+
+    class Order {
+        +String id
+        +String userId
+        +Date orderDate
+        +String status
+        +Float totalAmount
+        +createOrder()
+        +updateStatus()
+        +calculateTotal()
+    }
+
+    class OrderItem {
+        +String id
+        +String orderId
+        +String productId
+        +Integer quantity
+        +Float unitPrice
+        +Float subtotal
+        +calculateSubtotal()
+    }
+
+    class ShoppingCart {
+        +String id
+        +String userId
+        +Date createdAt
+        +addItem()
+        +removeItem()
+        +clearCart()
+        +getTotal()
+    }
+
+    User ||--o{ Order : places
+    Order ||--o{ OrderItem : contains
+    Product ||--o{ OrderItem : included_in
+    User ||--|| ShoppingCart : has
+    ShoppingCart }o--o{ Product : contains
