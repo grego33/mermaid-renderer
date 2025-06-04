@@ -33,10 +33,22 @@ function initializeApp() {
     const fileInfo = document.getElementById('fileInfo');
     const watchStatus = document.getElementById('watchStatus');
     const diagramContainer = document.getElementById('diagram');
+    const zoomInBtn = document.getElementById('zoomIn');
+    const zoomOutBtn = document.getElementById('zoomOut');
+    const zoomResetBtn = document.getElementById('zoomReset');
+    const zoomInfo = document.getElementById('zoomInfo');
     
     let selectedFilePath = null;
     let fileContent = '';
     let autoRenderEnabled = true;
+    
+    // Zoom and pan state
+    let zoomLevel = 1;
+    let panX = 0;
+    let panY = 0;
+    let isDragging = false;
+    let lastMouseX = 0;
+    let lastMouseY = 0;
 
     // Add file selection button
     const selectFileBtn = document.createElement('button');
@@ -139,6 +151,73 @@ function initializeApp() {
         showWatchStatus(false);
     });
 
+    // Zoom controls
+    zoomInBtn.addEventListener('click', () => zoomIn());
+    zoomOutBtn.addEventListener('click', () => zoomOut());
+    zoomResetBtn.addEventListener('click', () => resetZoom());
+
+    // Mouse wheel zoom
+    diagramContainer.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        const delta = e.deltaY > 0 ? -0.1 : 0.1;
+        zoom(delta, e.clientX - diagramContainer.offsetLeft, e.clientY - diagramContainer.offsetTop);
+    });
+
+    // Pan functionality
+    diagramContainer.addEventListener('mousedown', (e) => {
+        if (e.target.closest('#diagram svg')) {
+            isDragging = true;
+            lastMouseX = e.clientX;
+            lastMouseY = e.clientY;
+            diagramContainer.style.cursor = 'grabbing';
+        }
+    });
+
+    document.addEventListener('mousemove', (e) => {
+        if (isDragging) {
+            const deltaX = e.clientX - lastMouseX;
+            const deltaY = e.clientY - lastMouseY;
+            panX += deltaX;
+            panY += deltaY;
+            updateDiagramTransform();
+            lastMouseX = e.clientX;
+            lastMouseY = e.clientY;
+        }
+    });
+
+    document.addEventListener('mouseup', () => {
+        if (isDragging) {
+            isDragging = false;
+            diagramContainer.style.cursor = 'grab';
+        }
+    });
+
+    // Keyboard shortcuts for zoom
+    document.addEventListener('keydown', (e) => {
+        // Only handle keyboard shortcuts when not typing in inputs
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+            return;
+        }
+
+        if (e.ctrlKey || e.metaKey) {
+            switch (e.key) {
+                case '+':
+                case '=':
+                    e.preventDefault();
+                    zoomIn();
+                    break;
+                case '-':
+                    e.preventDefault();
+                    zoomOut();
+                    break;
+                case '0':
+                    e.preventDefault();
+                    resetZoom();
+                    break;
+            }
+        }
+    });
+
     function showFileInfo(file) {
         const fileName = file.name || file;
         const fileSize = file.size || 0;
@@ -219,6 +298,11 @@ function initializeApp() {
             // Render the mermaid diagram
             const { svg } = await mermaid.render(diagramId + '-svg', mermaidCode);
             diagramDiv.innerHTML = svg;
+            
+            // Reset zoom and pan for new diagram
+            setTimeout(() => {
+                resetZoom();
+            }, 100);
             
             showStatus('Diagram rendered successfully! 🎉', 'success');
             
@@ -307,7 +391,88 @@ function initializeApp() {
         fileInfo.style.display = 'none';
         hideWatchStatus();
         diagramContainer.innerHTML = 'Select a file containing Mermaid code to get started';
+        resetZoom();
         hideStatus();
+    }
+
+    // Zoom and pan functions
+    function zoomIn() {
+        zoom(0.2);
+    }
+
+    function zoomOut() {
+        zoom(-0.2);
+    }
+
+    function zoom(delta, mouseX = null, mouseY = null) {
+        const oldZoom = zoomLevel;
+        const newZoom = Math.max(0.1, Math.min(5, zoomLevel + delta));
+        
+        // Only proceed if zoom level actually changed
+        if (newZoom === zoomLevel) {
+            return;
+        }
+        
+        zoomLevel = newZoom;
+        
+        // If mouse position provided, zoom towards mouse position
+        if (mouseX !== null && mouseY !== null) {
+            const containerRect = diagramContainer.getBoundingClientRect();
+            const centerX = containerRect.width / 2;
+            const centerY = containerRect.height / 2;
+            
+            const offsetX = mouseX - centerX;
+            const offsetY = mouseY - centerY;
+            
+            panX -= offsetX * (zoomLevel - oldZoom);
+            panY -= offsetY * (zoomLevel - oldZoom);
+        }
+        
+        updateDiagramTransform();
+        updateZoomInfo();
+        
+        // Update zoom button states
+        updateZoomButtons();
+    }
+
+    function resetZoom() {
+        zoomLevel = 1;
+        panX = 0;
+        panY = 0;
+        updateDiagramTransform();
+        updateZoomInfo();
+        updateZoomButtons();
+    }
+
+    function updateDiagramTransform() {
+        const diagram = document.getElementById('diagram');
+        diagram.style.transform = `translate(${panX}px, ${panY}px) scale(${zoomLevel})`;
+        diagram.style.transition = isDragging ? 'none' : 'transform 0.2s ease';
+    }
+
+    function updateZoomInfo() {
+        zoomInfo.textContent = `${Math.round(zoomLevel * 100)}%`;
+    }
+
+    function updateZoomButtons() {
+        zoomInBtn.disabled = zoomLevel >= 5;
+        zoomOutBtn.disabled = zoomLevel <= 0.1;
+        
+        if (zoomLevel >= 5) {
+            zoomInBtn.style.opacity = '0.5';
+            zoomInBtn.style.cursor = 'not-allowed';
+        } else {
+            zoomInBtn.style.opacity = '1';
+            zoomInBtn.style.cursor = 'pointer';
+        }
+        
+        if (zoomLevel <= 0.1) {
+            zoomOutBtn.style.opacity = '0.5';
+            zoomOutBtn.style.cursor = 'not-allowed';
+        } else {
+            zoomOutBtn.style.opacity = '1';
+            zoomOutBtn.style.cursor = 'pointer';
+        }
     }
 
     function formatFileSize(bytes) {

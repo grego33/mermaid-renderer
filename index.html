@@ -68,7 +68,9 @@
         border-radius: 8px;
         box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         min-height: 400px;
-        overflow: auto;
+        overflow: hidden;
+        position: relative;
+        border: 1px solid #e0e0e0;
       }
       .status {
         margin: 10px 0;
@@ -130,32 +132,118 @@
         align-items: center;
         justify-content: center;
         color: #666;
+        transform-origin: center center;
+        transition: transform 0.2s ease;
+        cursor: grab;
+      }
+      #diagram:active {
+        cursor: grabbing;
+      }
+      .zoom-controls {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        display: flex;
+        gap: 5px;
+        z-index: 100;
+        opacity: 0.7;
+        transition: opacity 0.3s ease;
+        background: rgba(255, 255, 255, 0.9);
+        padding: 5px;
+        border-radius: 6px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+      }
+      .diagram-container:hover .zoom-controls {
+        opacity: 1;
+      }
+      .zoom-btn {
+        width: 32px;
+        height: 32px;
+        border: 1px solid #ddd;
+        background: white;
+        border-radius: 4px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 16px;
+        font-weight: bold;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        transition: all 0.2s ease;
+      }
+      .zoom-btn:hover {
+        background: #007acc;
+        color: white;
+        border-color: #005999;
+        transform: translateY(-1px);
+        box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+      }
+      .zoom-btn:active {
+        transform: translateY(0);
+      }
+      .zoom-info {
+        position: absolute;
+        bottom: 10px;
+        left: 10px;
+        background: rgba(0,0,0,0.8);
+        color: white;
+        padding: 6px 10px;
+        border-radius: 4px;
+        font-size: 12px;
+        font-weight: 500;
+        opacity: 0.8;
+        transition: opacity 0.3s ease;
+        z-index: 100;
+        border: 1px solid rgba(255,255,255,0.2);
+      }
+      .diagram-container:hover .zoom-info {
+        opacity: 1;
+      }
+      .zoom-hint {
+        position: absolute;
+        bottom: 35px;
+        left: 10px;
+        background: rgba(0,0,0,0.8);
+        color: white;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 11px;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+        z-index: 100;
+        border: 1px solid rgba(255,255,255,0.2);
+      }
+      .diagram-container:hover .zoom-hint {
+        opacity: 0.7;
       }
     </style>
   </head>
   <body>
-    <div class="header">
-      <h1>🧜‍♀️ Mermaid Diagram Renderer</h1>
-      <p>Select a file containing Mermaid.js code to render beautiful diagrams</p>
-    </div>
 
     <div class="controls">
       <div class="file-input-wrapper">
         <input type="file" id="fileInput" accept=".md,.txt,.mmd,.mermaid" />
       </div>
-      
+
       <div class="file-info" id="fileInfo"></div>
       <div class="watch-status" id="watchStatus"></div>
-      
+
       <div class="buttons">
         <button id="renderBtn" disabled>🎨 Render Diagram</button>
         <button id="clearBtn" class="clear-btn">🗑️ Clear</button>
       </div>
-      
+
       <div class="status" id="status"></div>
     </div>
 
     <div class="diagram-container">
+      <div class="zoom-controls">
+        <button class="zoom-btn" id="zoomIn" title="Zoom In (Ctrl/Cmd + +)">+</button>
+        <button class="zoom-btn" id="zoomOut" title="Zoom Out (Ctrl/Cmd + -)">−</button>
+        <button class="zoom-btn" id="zoomReset" title="Reset Zoom (Ctrl/Cmd + 0)">⌂</button>
+      </div>
+      <div class="zoom-info" id="zoomInfo">100%</div>
+      <div class="zoom-hint">Mouse wheel to zoom • Drag to pan</div>
       <div id="diagram">
         Select a file containing Mermaid code to get started
       </div>
