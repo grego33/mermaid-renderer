@@ -135,8 +135,16 @@ function initializeApp() {
     // Mouse wheel zoom
     diagramContainer.addEventListener('wheel', (e) => {
         e.preventDefault();
-        const delta = e.deltaY > 0 ? -0.1 : 0.1;
-        zoom(delta, e.clientX - diagramContainer.offsetLeft, e.clientY - diagramContainer.offsetTop);
+        
+        // Get mouse position relative to the diagram container
+        const rect = diagramContainer.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+        
+        // Smooth zoom delta
+        const delta = e.deltaY > 0 ? -0.05 : 0.05;
+        
+        zoom(delta, mouseX, mouseY);
     });
 
     // Pan functionality
@@ -180,11 +188,11 @@ function initializeApp() {
                 case '+':
                 case '=':
                     e.preventDefault();
-                    zoomIn();
+                    zoom(0.1);
                     break;
                 case '-':
                     e.preventDefault();
-                    zoomOut();
+                    zoom(-0.1);
                     break;
                 case '0':
                     e.preventDefault();
@@ -275,9 +283,10 @@ function initializeApp() {
             const { svg } = await mermaid.render(diagramId + '-svg', mermaidCode);
             diagramDiv.innerHTML = svg;
             
-            // Reset zoom and pan for new diagram
+            // Reset zoom and pan for new diagram, then center it
             setTimeout(() => {
                 resetZoom();
+                centerDiagram();
             }, 100);
             
             showStatus('Diagram rendered successfully! 🎉', 'success');
@@ -375,11 +384,11 @@ function initializeApp() {
 
     // Zoom and pan functions
     function zoomIn() {
-        zoom(0.2);
+        zoom(0.1);
     }
 
     function zoomOut() {
-        zoom(-0.2);
+        zoom(-0.1);
     }
 
     function zoom(delta, mouseX = null, mouseY = null) {
@@ -387,23 +396,30 @@ function initializeApp() {
         const newZoom = Math.max(0.1, Math.min(5, zoomLevel + delta));
         
         // Only proceed if zoom level actually changed
-        if (newZoom === zoomLevel) {
+        if (Math.abs(newZoom - zoomLevel) < 0.001) {
             return;
         }
-        
-        zoomLevel = newZoom;
         
         // If mouse position provided, zoom towards mouse position
         if (mouseX !== null && mouseY !== null) {
             const containerRect = diagramContainer.getBoundingClientRect();
-            const centerX = containerRect.width / 2;
-            const centerY = containerRect.height / 2;
             
-            const offsetX = mouseX - centerX;
-            const offsetY = mouseY - centerY;
+            // Calculate the point in the diagram coordinate system before zoom
+            const pointBeforeZoomX = (mouseX - containerRect.width / 2 - panX) / zoomLevel;
+            const pointBeforeZoomY = (mouseY - containerRect.height / 2 - panY) / zoomLevel;
             
-            panX -= offsetX * (zoomLevel - oldZoom);
-            panY -= offsetY * (zoomLevel - oldZoom);
+            // Update zoom level
+            zoomLevel = newZoom;
+            
+            // Calculate where that point should be after zoom
+            const pointAfterZoomX = pointBeforeZoomX * zoomLevel;
+            const pointAfterZoomY = pointBeforeZoomY * zoomLevel;
+            
+            // Adjust pan to keep the point under the mouse
+            panX = mouseX - containerRect.width / 2 - pointAfterZoomX;
+            panY = mouseY - containerRect.height / 2 - pointAfterZoomY;
+        } else {
+            zoomLevel = newZoom;
         }
         
         updateDiagramTransform();
@@ -422,10 +438,28 @@ function initializeApp() {
         updateZoomButtons();
     }
 
+    function centerDiagram() {
+        const diagram = document.getElementById('diagram');
+        const svg = diagram.querySelector('svg');
+        
+        if (svg) {
+            const containerRect = diagramContainer.getBoundingClientRect();
+            const svgRect = svg.getBoundingClientRect();
+            
+            // Calculate center offset
+            const centerX = (containerRect.width - svgRect.width * zoomLevel) / 2;
+            const centerY = (containerRect.height - svgRect.height * zoomLevel) / 2;
+            
+            panX = centerX;
+            panY = centerY;
+            updateDiagramTransform();
+        }
+    }
+
     function updateDiagramTransform() {
         const diagram = document.getElementById('diagram');
         diagram.style.transform = `translate(${panX}px, ${panY}px) scale(${zoomLevel})`;
-        diagram.style.transition = isDragging ? 'none' : 'transform 0.2s ease';
+        diagram.style.transition = isDragging ? 'none' : 'transform 0.1s ease-out';
     }
 
     function updateZoomInfo() {
