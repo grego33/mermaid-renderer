@@ -1,0 +1,39 @@
+graph TB
+    A[Start Application] --> B{File Selected?}
+    B -->|No| C[Show File Selection Dialog]
+    B -->|Yes| D[Parse Mermaid Code]
+    
+    C --> E[User Selects File]
+    E --> F[Read File Content]
+    F --> D
+    
+    D --> G{Valid Mermaid?}
+    G -->|No| H[Show Error Message]
+    G -->|Yes| I[Render SVG Diagram]
+    
+    H --> C
+    I --> J[Display in Viewport]
+    
+    J --> K[Auto-collapse Controls]
+    K --> L[Enable File Watching]
+    L --> M[Enable Zoom & Pan]
+    
+    M --> N{User Interaction?}
+    N -->|Zoom| O[Calculate Zoom Position]
+    N -->|Pan| P[Update Pan Coordinates]
+    N -->|File Change| Q[Reload & Re-render]
+    N -->|New File| C
+    
+    O --> R[Update Transform Matrix]
+    P --> R
+    Q --> D
+    
+    R --> S[Apply CSS Transform]
+    S --> T[Update Zoom Info Display]
+    T --> N
+    
+    style A fill:#e1f5fe
+    style I fill:#c8e6c9
+    style M fill:#fff3e0
+    style R fill:#f3e5f5
+    style S fill:#e8f5e8

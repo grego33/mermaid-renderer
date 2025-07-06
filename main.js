@@ -82,6 +82,30 @@ const createWindow = () => {
     }
     return { success: true }
   })
+
+  // Handle file saving
+  ipcMain.handle('save-file', async (event, data, fileName, mimeType) => {
+    const result = await dialog.showSaveDialog(win, {
+      defaultPath: fileName,
+      filters: [
+        { name: 'PNG Images', extensions: ['png'] },
+        { name: 'SVG Images', extensions: ['svg'] },
+        { name: 'All Files', extensions: ['*'] }
+      ]
+    })
+
+    if (!result.canceled) {
+      try {
+        const buffer = Buffer.from(data.split(',')[1], 'base64')
+        fs.writeFileSync(result.filePath, buffer)
+        return { success: true, filePath: result.filePath }
+      } catch (error) {
+        return { success: false, error: error.message }
+      }
+    }
+
+    return { success: false, canceled: true }
+  })
 }
 
 app.whenReady().then(() => {

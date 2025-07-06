@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   stopFileWatch: () => ipcRenderer.invoke('stop-file-watch'),
   onFileChanged: (callback) => ipcRenderer.on('file-changed', callback),
   onFileWatchError: (callback) => ipcRenderer.on('file-watch-error', callback),
+  saveFile: (data, fileName, mimeType) => ipcRenderer.invoke('save-file', data, fileName, mimeType),
   removeAllListeners: () => {
     ipcRenderer.removeAllListeners('file-changed')
     ipcRenderer.removeAllListeners('file-watch-error')

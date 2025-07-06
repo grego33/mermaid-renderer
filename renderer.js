@@ -2,6 +2,7 @@
 
 // Import mermaid - we'll load it from node_modules
 let mermaid;
+let html2canvas;
 
 // Initialize the application
 document.addEventListener('DOMContentLoaded', async () => {
@@ -9,6 +10,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Dynamically import mermaid
         const mermaidModule = await import('./node_modules/mermaid/dist/mermaid.esm.min.mjs');
         mermaid = mermaidModule.default;
+        
+        // Dynamically import html2canvas
+        const html2canvasModule = await import('./node_modules/html2canvas/dist/html2canvas.esm.js');
+        html2canvas = html2canvasModule.default;
         
         // Initialize mermaid with configuration
         mermaid.initialize({
@@ -21,39 +26,36 @@ document.addEventListener('DOMContentLoaded', async () => {
         
         initializeApp();
     } catch (error) {
-        showStatus('Failed to load Mermaid library: ' + error.message, 'error');
-        console.error('Mermaid loading error:', error);
+        showStatus('Failed to load required libraries: ' + error.message, 'error');
+        console.error('Library loading error:', error);
     }
 });
 
 function initializeApp() {
     const fileInput = document.getElementById('fileInput');
-    const renderBtn = document.getElementById('renderBtn');
-    const clearBtn = document.getElementById('clearBtn');
-    const fileInfo = document.getElementById('fileInfo');
     const watchStatus = document.getElementById('watchStatus');
     const diagramContainer = document.getElementById('diagram');
+    const zoomInBtn = document.getElementById('zoomIn');
+    const zoomOutBtn = document.getElementById('zoomOut');
+    const zoomResetBtn = document.getElementById('zoomReset');
+    const exportPNGBtn = document.getElementById('exportPNG');
+    const exportSVGBtn = document.getElementById('exportSVG');
+    const zoomInfo = document.getElementById('zoomInfo');
+    const controls = document.getElementById('controls');
+    const toggleControls = document.getElementById('toggleControls');
+    const toggleIcon = document.getElementById('toggleIcon');
     
     let selectedFilePath = null;
     let fileContent = '';
     let autoRenderEnabled = true;
-
-    // Add file selection button
-    const selectFileBtn = document.createElement('button');
-    selectFileBtn.textContent = '📁 Select File';
-    selectFileBtn.style.marginRight = '10px';
-    fileInput.parentNode.insertBefore(selectFileBtn, fileInput);
-
-    // Add auto-render toggle
-    const autoRenderToggle = document.createElement('label');
-    autoRenderToggle.innerHTML = `
-        <input type="checkbox" id="autoRender" checked style="margin-right: 5px;">
-        🔄 Auto-render on file change
-    `;
-    autoRenderToggle.style.display = 'block';
-    autoRenderToggle.style.marginTop = '10px';
-    autoRenderToggle.style.fontSize = '14px';
-    fileInput.parentNode.appendChild(autoRenderToggle);
+    
+    // Zoom and pan state
+    let zoomLevel = 1;
+    let panX = 0;
+    let panY = 0;
+    let isDragging = false;
+    let lastMouseX = 0;
+    let lastMouseY = 0;
 
     const autoRenderCheckbox = document.getElementById('autoRender');
     autoRenderCheckbox.addEventListener('change', (e) => {
@@ -61,61 +63,54 @@ function initializeApp() {
         if (autoRenderEnabled && selectedFilePath) {
             showStatus('Auto-render enabled. File changes will automatically update the diagram.', 'success');
         } else if (!autoRenderEnabled) {
-            showStatus('Auto-render disabled. Use the render button to update manually.', 'success');
+            showStatus('Auto-render disabled. Manual refresh required.', 'success');
         }
     });
 
-    // File selection via dialog
-    selectFileBtn.addEventListener('click', async () => {
+    // Toggle controls visibility
+    toggleControls.addEventListener('click', () => {
+        controls.classList.toggle('collapsed');
+        toggleIcon.textContent = controls.classList.contains('collapsed') ? '▼' : '▲';
+    });
+
+    // Handle file selection from input (for drag and drop)
+    fileInput.addEventListener('change', (event) => {
+        const file = event.target.files[0];
+        if (file) {
+            readFileFromInput(file);
+        }
+    });
+
+    // Handle file selection via dialog button (label click triggers this)
+    document.querySelector('.file-label').addEventListener('click', async (e) => {
+        e.preventDefault();
         try {
             const result = await window.electronAPI.selectFile();
             if (result.success) {
                 selectedFilePath = result.filePath;
                 fileContent = result.content;
                 
-                showFileInfo({
-                    name: result.fileName,
-                    size: result.size
-                });
-                
-                renderBtn.disabled = false;
                 showStatus(`File loaded: ${result.fileName} (${result.content.length} characters)`, 'success');
                 
                 // Start watching the file
                 startFileWatching(result.filePath);
                 showWatchStatus(true);
                 
-                // Auto-render if enabled
-                if (autoRenderEnabled) {
-                    setTimeout(() => renderDiagram(fileContent), 300);
-                }
+                // Auto-collapse controls when file is loaded
+                setTimeout(() => {
+                    controls.classList.add('collapsed');
+                    toggleIcon.textContent = '▼';
+                }, 1000);
+                
+                // Auto-render
+                setTimeout(() => renderDiagram(fileContent), 300);
+                
             } else if (!result.canceled) {
                 showStatus('Error loading file: ' + result.error, 'error');
             }
         } catch (error) {
             showStatus('Error selecting file: ' + error.message, 'error');
         }
-    });
-
-    // Traditional file input (for drag and drop)
-    fileInput.addEventListener('change', (event) => {
-        const file = event.target.files[0];
-        if (file) {
-            showFileInfo(file);
-            readFileFromInput(file);
-        }
-    });
-
-    // Render button handler
-    renderBtn.addEventListener('click', () => {
-        if (fileContent) {
-            renderDiagram(fileContent);
-        }
-    });
-
-    // Clear button handler
-    clearBtn.addEventListener('click', () => {
-        clearAll();
     });
 
     // Listen for file changes from main process
@@ -130,7 +125,7 @@ function initializeApp() {
             showStatus('Auto-rendering updated diagram...', 'success');
             setTimeout(() => renderDiagram(fileContent), 200);
         } else {
-            showStatus('File updated. Click "Render Diagram" to see changes.', 'success');
+            showStatus('File updated. Manual refresh required.', 'success');
         }
     });
 
@@ -139,12 +134,113 @@ function initializeApp() {
         showWatchStatus(false);
     });
 
-    function showFileInfo(file) {
-        const fileName = file.name || file;
-        const fileSize = file.size || 0;
-        const info = `📄 ${fileName} (${formatFileSize(fileSize)})`;
-        fileInfo.textContent = info;
-        fileInfo.style.display = 'block';
+    // Zoom controls
+    zoomInBtn.addEventListener('click', () => zoomIn());
+    zoomOutBtn.addEventListener('click', () => zoomOut());
+    zoomResetBtn.addEventListener('click', () => resetZoom());
+    
+    // Export controls
+    exportPNGBtn.addEventListener('click', () => exportDiagram('png'));
+    exportSVGBtn.addEventListener('click', () => exportDiagram('svg'));
+
+    // Mouse wheel zoom
+    diagramContainer.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        
+        // Get mouse position relative to the diagram container
+        const rect = diagramContainer.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+        
+        // Smooth zoom delta
+        const delta = e.deltaY > 0 ? -0.05 : 0.05;
+        
+        zoom(delta, mouseX, mouseY);
+    });
+
+    // Pan functionality
+    diagramContainer.addEventListener('mousedown', (e) => {
+        if (e.target.closest('#diagram svg')) {
+            isDragging = true;
+            lastMouseX = e.clientX;
+            lastMouseY = e.clientY;
+            diagramContainer.style.cursor = 'grabbing';
+        }
+    });
+
+    document.addEventListener('mousemove', (e) => {
+        if (isDragging) {
+            const deltaX = e.clientX - lastMouseX;
+            const deltaY = e.clientY - lastMouseY;
+            panX += deltaX;
+            panY += deltaY;
+            updateDiagramTransform();
+            lastMouseX = e.clientX;
+            lastMouseY = e.clientY;
+        }
+    });
+
+    document.addEventListener('mouseup', () => {
+        if (isDragging) {
+            isDragging = false;
+            diagramContainer.style.cursor = 'grab';
+        }
+    });
+
+    // Keyboard shortcuts for zoom
+    document.addEventListener('keydown', (e) => {
+        // Only handle keyboard shortcuts when not typing in inputs
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+            return;
+        }
+
+        if (e.ctrlKey || e.metaKey) {
+            switch (e.key) {
+                case '+':
+                case '=':
+                    e.preventDefault();
+                    zoom(0.1);
+                    break;
+                case '-':
+                    e.preventDefault();
+                    zoom(-0.1);
+                    break;
+                case '0':
+                    e.preventDefault();
+                    resetZoom();
+                    break;
+            }
+        }
+        
+        // Toggle controls with 'c' key
+        if (e.key === 'c' && !e.ctrlKey && !e.metaKey) {
+            controls.classList.toggle('collapsed');
+            toggleIcon.textContent = controls.classList.contains('collapsed') ? '▼' : '▲';
+        }
+    });
+
+    function readFileFromInput(file) {
+        const reader = new FileReader();
+        
+        reader.onload = (e) => {
+            fileContent = e.target.result;
+            showStatus(`File loaded: ${file.name} (${fileContent.length} characters)`, 'success');
+            
+            // Auto-collapse controls when file is loaded
+            setTimeout(() => {
+                controls.classList.add('collapsed');
+                toggleIcon.textContent = '▼';
+            }, 1000);
+            
+            // Auto-render
+            setTimeout(() => renderDiagram(fileContent), 300);
+        };
+        
+        reader.onerror = () => {
+            showStatus('Error reading file: ' + reader.error.message, 'error');
+        };
+        
+        reader.readAsText(file);
     }
 
     function showWatchStatus(isActive) {
@@ -172,28 +268,6 @@ function initializeApp() {
         }
     }
 
-    function readFileFromInput(file) {
-        const reader = new FileReader();
-        
-        reader.onload = (e) => {
-            fileContent = e.target.result;
-            renderBtn.disabled = false;
-            showStatus(`File loaded successfully! ${fileContent.length} characters read.`, 'success');
-            
-            // Auto-render if enabled
-            if (autoRenderEnabled) {
-                setTimeout(() => renderDiagram(fileContent), 300);
-            }
-        };
-        
-        reader.onerror = () => {
-            showStatus('Error reading file: ' + reader.error.message, 'error');
-            renderBtn.disabled = true;
-        };
-        
-        reader.readAsText(file);
-    }
-
     async function renderDiagram(content) {
         try {
             showStatus('Rendering diagram...', 'success');
@@ -219,6 +293,12 @@ function initializeApp() {
             // Render the mermaid diagram
             const { svg } = await mermaid.render(diagramId + '-svg', mermaidCode);
             diagramDiv.innerHTML = svg;
+            
+            // Reset zoom and pan for new diagram, then center it
+            setTimeout(() => {
+                resetZoom();
+                centerDiagram();
+            }, 100);
             
             showStatus('Diagram rendered successfully! 🎉', 'success');
             
@@ -303,11 +383,119 @@ function initializeApp() {
         fileInput.value = '';
         fileContent = '';
         selectedFilePath = null;
-        renderBtn.disabled = true;
-        fileInfo.style.display = 'none';
         hideWatchStatus();
         diagramContainer.innerHTML = 'Select a file containing Mermaid code to get started';
+        resetZoom();
         hideStatus();
+        
+        // Show controls when clearing
+        controls.classList.remove('collapsed');
+        toggleIcon.textContent = '▲';
+    }
+
+    // Zoom and pan functions
+    function zoomIn() {
+        zoom(0.1);
+    }
+
+    function zoomOut() {
+        zoom(-0.1);
+    }
+
+    function zoom(delta, mouseX = null, mouseY = null) {
+        const oldZoom = zoomLevel;
+        const newZoom = Math.max(0.1, Math.min(5, zoomLevel + delta));
+        
+        // Only proceed if zoom level actually changed
+        if (Math.abs(newZoom - zoomLevel) < 0.001) {
+            return;
+        }
+        
+        // If mouse position provided, zoom towards mouse position
+        if (mouseX !== null && mouseY !== null) {
+            const containerRect = diagramContainer.getBoundingClientRect();
+            
+            // Calculate the point in the diagram coordinate system before zoom
+            const pointBeforeZoomX = (mouseX - containerRect.width / 2 - panX) / zoomLevel;
+            const pointBeforeZoomY = (mouseY - containerRect.height / 2 - panY) / zoomLevel;
+            
+            // Update zoom level
+            zoomLevel = newZoom;
+            
+            // Calculate where that point should be after zoom
+            const pointAfterZoomX = pointBeforeZoomX * zoomLevel;
+            const pointAfterZoomY = pointBeforeZoomY * zoomLevel;
+            
+            // Adjust pan to keep the point under the mouse
+            panX = mouseX - containerRect.width / 2 - pointAfterZoomX;
+            panY = mouseY - containerRect.height / 2 - pointAfterZoomY;
+        } else {
+            zoomLevel = newZoom;
+        }
+        
+        updateDiagramTransform();
+        updateZoomInfo();
+        
+        // Update zoom button states
+        updateZoomButtons();
+    }
+
+    function resetZoom() {
+        zoomLevel = 1;
+        panX = 0;
+        panY = 0;
+        updateDiagramTransform();
+        updateZoomInfo();
+        updateZoomButtons();
+    }
+
+    function centerDiagram() {
+        const diagram = document.getElementById('diagram');
+        const svg = diagram.querySelector('svg');
+        
+        if (svg) {
+            const containerRect = diagramContainer.getBoundingClientRect();
+            const svgRect = svg.getBoundingClientRect();
+            
+            // Calculate center offset
+            const centerX = (containerRect.width - svgRect.width * zoomLevel) / 2;
+            const centerY = (containerRect.height - svgRect.height * zoomLevel) / 2;
+            
+            panX = centerX;
+            panY = centerY;
+            updateDiagramTransform();
+        }
+    }
+
+    function updateDiagramTransform() {
+        const diagram = document.getElementById('diagram');
+        diagram.style.transform = `translate(${panX}px, ${panY}px) scale(${zoomLevel})`;
+        diagram.style.transition = isDragging ? 'none' : 'transform 0.1s ease-out';
+    }
+
+    function updateZoomInfo() {
+        zoomInfo.textContent = `${Math.round(zoomLevel * 100)}%`;
+    }
+
+    function updateZoomButtons() {
+        zoomInBtn.disabled = zoomLevel >= 5;
+        zoomOutBtn.disabled = zoomLevel <= 0.1;
+        
+        if (zoomLevel >= 5) {
+            zoomInBtn.style.opacity = '0.5';
+            zoomInBtn.style.cursor = 'not-allowed';
+        } else {
+            zoomInBtn.style.opacity = '1';
+            zoomInBtn.style.cursor = 'pointer';
+        }
+        
+        if (zoomLevel <= 0.1) {
+            zoomOutBtn.style.opacity = '0.5';
+            zoomOutBtn.style.cursor = 'not-allowed';
+        } else {
+            zoomOutBtn.style.opacity = '1';
+            zoomOutBtn.style.cursor = 'pointer';
+        }
     }
 
     function formatFileSize(bytes) {
@@ -316,6 +504,110 @@ function initializeApp() {
         const sizes = ['Bytes', 'KB', 'MB', 'GB'];
         const i = Math.floor(Math.log(bytes) / Math.log(k));
         return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+    
+    // Export functions
+    async function exportDiagram(format) {
+        const diagram = document.getElementById('diagram');
+        const svg = diagram.querySelector('svg');
+        
+        if (!svg) {
+            showStatus('No diagram to export. Please load a file first.', 'error');
+            return;
+        }
+        
+        try {
+            showStatus(`Exporting diagram as ${format.toUpperCase()}...`, 'success');
+            
+            if (format === 'svg') {
+                await exportSVG(svg);
+            } else if (format === 'png') {
+                await exportPNG(diagram);
+            }
+            
+        } catch (error) {
+            console.error('Export error:', error);
+            showStatus(`Error exporting diagram: ${error.message}`, 'error');
+        }
+    }
+    
+    async function exportSVG(svgElement) {
+        try {
+            // Clone the SVG to avoid modifying the original
+            const clonedSVG = svgElement.cloneNode(true);
+            
+            // Create a new SVG string with proper XML declaration
+            const svgString = new XMLSerializer().serializeToString(clonedSVG);
+            const svgBlob = new Blob([svgString], { type: 'image/svg+xml' });
+            
+            // Convert to base64 for electron file saving
+            const reader = new FileReader();
+            reader.onload = async function() {
+                const base64Data = reader.result;
+                
+                // Generate filename based on current file
+                const fileName = getExportFileName('svg');
+                
+                // Save file using electron API
+                const result = await window.electronAPI.saveFile(base64Data, fileName, 'image/svg+xml');
+                
+                if (result.success) {
+                    showStatus(`SVG exported successfully to ${result.filePath}`, 'success');
+                } else if (!result.canceled) {
+                    showStatus(`Error saving SVG: ${result.error}`, 'error');
+                }
+            };
+            reader.readAsDataURL(svgBlob);
+            
+        } catch (error) {
+            throw new Error('Failed to export SVG: ' + error.message);
+        }
+    }
+    
+    async function exportPNG(diagramElement) {
+        try {
+            // Use html2canvas to capture the diagram
+            const canvas = await html2canvas(diagramElement, {
+                backgroundColor: '#ffffff',
+                scale: 2, // Higher resolution
+                useCORS: true,
+                allowTaint: true,
+                logging: false,
+                width: diagramElement.scrollWidth,
+                height: diagramElement.scrollHeight
+            });
+            
+            // Convert canvas to blob
+            const base64Data = canvas.toDataURL('image/png');
+            
+            // Generate filename based on current file
+            const fileName = getExportFileName('png');
+            
+            // Save file using electron API
+            const result = await window.electronAPI.saveFile(base64Data, fileName, 'image/png');
+            
+            if (result.success) {
+                showStatus(`PNG exported successfully to ${result.filePath}`, 'success');
+            } else if (!result.canceled) {
+                showStatus(`Error saving PNG: ${result.error}`, 'error');
+            }
+            
+        } catch (error) {
+            throw new Error('Failed to export PNG: ' + error.message);
+        }
+    }
+    
+    function getExportFileName(extension) {
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+        
+        if (selectedFilePath) {
+            // Extract filename without extension manually
+            const fileName = selectedFilePath.split('/').pop() || selectedFilePath.split('\\').pop();
+            const baseName = fileName.split('.').slice(0, -1).join('.') || fileName;
+            return `${baseName}_${timestamp}.${extension}`;
+        }
+        
+        return `diagram_${timestamp}.${extension}`;
     }
 }
 
@@ -351,16 +643,15 @@ document.addEventListener('dragleave', (e) => {
     document.body.style.backgroundColor = '#f5f5f5';
 });
 
-document.addEventListener('drop', (e) => {
+document.addEventListener('drop', async (e) => {
     e.preventDefault();
     e.stopPropagation();
     document.body.style.backgroundColor = '#f5f5f5';
     
     const files = e.dataTransfer.files;
     if (files.length > 0) {
-        const fileInput = document.getElementById('fileInput');
-        fileInput.files = files;
-        fileInput.dispatchEvent(new Event('change'));
+        const file = files[0];
+        readFileFromInput(file);
     }
 });
 
