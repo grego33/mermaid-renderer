@@ -2,6 +2,7 @@
 
 // Import mermaid - we'll load it from node_modules
 let mermaid;
+let html2canvas;
 
 // Initialize the application
 document.addEventListener('DOMContentLoaded', async () => {
@@ -9,6 +10,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Dynamically import mermaid
         const mermaidModule = await import('./node_modules/mermaid/dist/mermaid.esm.min.mjs');
         mermaid = mermaidModule.default;
+        
+        // Dynamically import html2canvas
+        const html2canvasModule = await import('./node_modules/html2canvas/dist/html2canvas.esm.js');
+        html2canvas = html2canvasModule.default;
         
         // Initialize mermaid with configuration
         mermaid.initialize({
@@ -21,8 +26,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         
         initializeApp();
     } catch (error) {
-        showStatus('Failed to load Mermaid library: ' + error.message, 'error');
-        console.error('Mermaid loading error:', error);
+        showStatus('Failed to load required libraries: ' + error.message, 'error');
+        console.error('Library loading error:', error);
     }
 });
 
@@ -33,6 +38,8 @@ function initializeApp() {
     const zoomInBtn = document.getElementById('zoomIn');
     const zoomOutBtn = document.getElementById('zoomOut');
     const zoomResetBtn = document.getElementById('zoomReset');
+    const exportPNGBtn = document.getElementById('exportPNG');
+    const exportSVGBtn = document.getElementById('exportSVG');
     const zoomInfo = document.getElementById('zoomInfo');
     const controls = document.getElementById('controls');
     const toggleControls = document.getElementById('toggleControls');
@@ -131,6 +138,10 @@ function initializeApp() {
     zoomInBtn.addEventListener('click', () => zoomIn());
     zoomOutBtn.addEventListener('click', () => zoomOut());
     zoomResetBtn.addEventListener('click', () => resetZoom());
+    
+    // Export controls
+    exportPNGBtn.addEventListener('click', () => exportDiagram('png'));
+    exportSVGBtn.addEventListener('click', () => exportDiagram('svg'));
 
     // Mouse wheel zoom
     diagramContainer.addEventListener('wheel', (e) => {
@@ -493,6 +504,110 @@ function initializeApp() {
         const sizes = ['Bytes', 'KB', 'MB', 'GB'];
         const i = Math.floor(Math.log(bytes) / Math.log(k));
         return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+    
+    // Export functions
+    async function exportDiagram(format) {
+        const diagram = document.getElementById('diagram');
+        const svg = diagram.querySelector('svg');
+        
+        if (!svg) {
+            showStatus('No diagram to export. Please load a file first.', 'error');
+            return;
+        }
+        
+        try {
+            showStatus(`Exporting diagram as ${format.toUpperCase()}...`, 'success');
+            
+            if (format === 'svg') {
+                await exportSVG(svg);
+            } else if (format === 'png') {
+                await exportPNG(diagram);
+            }
+            
+        } catch (error) {
+            console.error('Export error:', error);
+            showStatus(`Error exporting diagram: ${error.message}`, 'error');
+        }
+    }
+    
+    async function exportSVG(svgElement) {
+        try {
+            // Clone the SVG to avoid modifying the original
+            const clonedSVG = svgElement.cloneNode(true);
+            
+            // Create a new SVG string with proper XML declaration
+            const svgString = new XMLSerializer().serializeToString(clonedSVG);
+            const svgBlob = new Blob([svgString], { type: 'image/svg+xml' });
+            
+            // Convert to base64 for electron file saving
+            const reader = new FileReader();
+            reader.onload = async function() {
+                const base64Data = reader.result;
+                
+                // Generate filename based on current file
+                const fileName = getExportFileName('svg');
+                
+                // Save file using electron API
+                const result = await window.electronAPI.saveFile(base64Data, fileName, 'image/svg+xml');
+                
+                if (result.success) {
+                    showStatus(`SVG exported successfully to ${result.filePath}`, 'success');
+                } else if (!result.canceled) {
+                    showStatus(`Error saving SVG: ${result.error}`, 'error');
+                }
+            };
+            reader.readAsDataURL(svgBlob);
+            
+        } catch (error) {
+            throw new Error('Failed to export SVG: ' + error.message);
+        }
+    }
+    
+    async function exportPNG(diagramElement) {
+        try {
+            // Use html2canvas to capture the diagram
+            const canvas = await html2canvas(diagramElement, {
+                backgroundColor: '#ffffff',
+                scale: 2, // Higher resolution
+                useCORS: true,
+                allowTaint: true,
+                logging: false,
+                width: diagramElement.scrollWidth,
+                height: diagramElement.scrollHeight
+            });
+            
+            // Convert canvas to blob
+            const base64Data = canvas.toDataURL('image/png');
+            
+            // Generate filename based on current file
+            const fileName = getExportFileName('png');
+            
+            // Save file using electron API
+            const result = await window.electronAPI.saveFile(base64Data, fileName, 'image/png');
+            
+            if (result.success) {
+                showStatus(`PNG exported successfully to ${result.filePath}`, 'success');
+            } else if (!result.canceled) {
+                showStatus(`Error saving PNG: ${result.error}`, 'error');
+            }
+            
+        } catch (error) {
+            throw new Error('Failed to export PNG: ' + error.message);
+        }
+    }
+    
+    function getExportFileName(extension) {
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+        
+        if (selectedFilePath) {
+            // Extract filename without extension manually
+            const fileName = selectedFilePath.split('/').pop() || selectedFilePath.split('\\').pop();
+            const baseName = fileName.split('.').slice(0, -1).join('.') || fileName;
+            return `${baseName}_${timestamp}.${extension}`;
+        }
+        
+        return `diagram_${timestamp}.${extension}`;
     }
 }
 

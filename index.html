@@ -206,6 +206,21 @@
       .zoom-btn:active {
         transform: translateY(0);
       }
+      .export-separator {
+        width: 1px;
+        height: 24px;
+        background: #ddd;
+        margin: 0 5px;
+      }
+      .export-btn {
+        background: #28a745;
+        color: white;
+        border-color: #28a745;
+      }
+      .export-btn:hover {
+        background: #218838;
+        border-color: #1e7e34;
+      }
       .zoom-info {
         position: absolute;
         bottom: 15px;
@@ -270,6 +285,9 @@
         <button class="zoom-btn" id="zoomIn" title="Zoom In (Ctrl/Cmd + +)">+</button>
         <button class="zoom-btn" id="zoomOut" title="Zoom Out (Ctrl/Cmd + -)">−</button>
         <button class="zoom-btn" id="zoomReset" title="Reset Zoom (Ctrl/Cmd + 0)">⌂</button>
+        <div class="export-separator"></div>
+        <button class="zoom-btn export-btn" id="exportPNG" title="Export as PNG">📷</button>
+        <button class="zoom-btn export-btn" id="exportSVG" title="Export as SVG">🎨</button>
       </div>
       <div class="zoom-info" id="zoomInfo">100%</div>
       <div class="zoom-hint">Mouse wheel to zoom • Drag to pan • Click controls to show/hide</div>
